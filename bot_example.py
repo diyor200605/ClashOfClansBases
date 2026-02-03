@@ -8,7 +8,7 @@ from telegram.ext import Application, CommandHandler, CallbackContext
 import os
 
 # Замените на ваш токен бота от @BotFather
-BOT_TOKEN = os.getenv('BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE')
+BOT_TOKEN = os.getenv('BOT_TOKEN', '8447879501:AAEl7x1BD9_g0Sv1-ToGceiLzUehw3D48-k')
 
 # URL вашего Web App (должен быть HTTPS)
 WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://yourdomain.com/index.html')

@@ -4,24 +4,44 @@
  */
 
 // Инициализация Telegram Web App
-let tg = window.Telegram.WebApp;
+let tg = null;
+if (window.Telegram && window.Telegram.WebApp) {
+    tg = window.Telegram.WebApp;
+}
 
 // Текущий выбранный уровень ратуши
 let currentTH = null;
+
+/**
+ * Безопасное получение значения из Telegram API
+ */
+function safeTelegramCall(method, ...args) {
+    if (tg && typeof tg[method] === 'function') {
+        try {
+            return tg[method](...args);
+        } catch (e) {
+            console.warn(`Telegram API error: ${method}`, e);
+            return null;
+        }
+    }
+    return null;
+}
 
 /**
  * Инициализация приложения
  */
 function init() {
     // Инициализация Telegram Web App
-    tg.ready();
-    tg.expand();
-    
-    // Применение темы Telegram
-    applyTelegramTheme();
-    
-    // Слушатель изменения темы
-    tg.onEvent('themeChanged', applyTelegramTheme);
+    if (tg) {
+        tg.ready();
+        tg.expand();
+        
+        // Применение темы Telegram
+        applyTelegramTheme();
+        
+        // Слушатель изменения темы
+        tg.onEvent('themeChanged', applyTelegramTheme);
+    }
     
     // Инициализация главного экрана
     initMainScreen();
@@ -34,17 +54,19 @@ function init() {
  * Применение темы Telegram к приложению
  */
 function applyTelegramTheme() {
-    const theme = tg.colorScheme; // 'light' или 'dark'
-    const bgColor = tg.backgroundColor || '#ffffff';
-    const textColor = tg.headerColor || '#000000';
+    if (!tg) return;
+    
+    const theme = tg.colorScheme || 'dark'; // 'light' или 'dark'
+    const bgColor = tg.backgroundColor || '#1a1a1a';
+    const textColor = tg.headerColor || '#ffffff';
     
     // Обновление CSS переменных
     document.documentElement.style.setProperty('--bg-primary', bgColor);
     document.documentElement.style.setProperty('--text-primary', textColor);
     
     // Установка цвета фона для Telegram
-    tg.setHeaderColor(theme === 'dark' ? '#1a1a1a' : '#ffffff');
-    tg.setBackgroundColor(theme === 'dark' ? '#1a1a1a' : '#ffffff');
+    safeTelegramCall('setHeaderColor', theme === 'dark' ? '#1a1a1a' : '#ffffff');
+    safeTelegramCall('setBackgroundColor', theme === 'dark' ? '#1a1a1a' : '#ffffff');
 }
 
 /**
@@ -79,7 +101,12 @@ function selectTownHall(thLevel) {
     const bases = getBasesForTH(thLevel);
     
     if (bases.length === 0) {
-        tg.showAlert('Базы для этого уровня ратуши пока не добавлены');
+        const message = 'Базы для этого уровня ратуши пока не добавлены';
+        if (tg) {
+            safeTelegramCall('showAlert', message);
+        } else {
+            alert(message);
+        }
         return;
     }
     
@@ -87,7 +114,13 @@ function selectTownHall(thLevel) {
     showBasesScreen(thLevel, bases);
     
     // Вибрация (если поддерживается)
-    tg.HapticFeedback.impactOccurred('light');
+    if (tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred) {
+        try {
+            tg.HapticFeedback.impactOccurred('light');
+        } catch (e) {
+            console.warn('HapticFeedback error', e);
+        }
+    }
 }
 
 /**
@@ -116,6 +149,15 @@ function showBasesScreen(thLevel, basesList) {
 }
 
 /**
+ * Экранирование HTML для безопасности
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
  * Создание карточки базы
  * @param {Object} base - Объект базы
  * @returns {HTMLElement} Элемент карточки
@@ -124,22 +166,38 @@ function createBaseCard(base) {
     const card = document.createElement('div');
     card.className = 'base-card';
     
-    card.innerHTML = `
-        <div class="base-card-image">
-            <img src="${base.imageUrl}" alt="${base.name}" onerror="this.style.display='none'">
-        </div>
-        <div class="base-card-content">
-            <h3 class="base-card-title">${base.name}</h3>
-            <p class="base-card-description">${base.description}</p>
-            <button class="base-card-button" data-base-id="${base.id}">
-                Выбрать базу
-            </button>
-        </div>
-    `;
+    // Безопасное создание элементов
+    const imageDiv = document.createElement('div');
+    imageDiv.className = 'base-card-image';
+    const img = document.createElement('img');
+    img.src = base.imageUrl || '';
+    img.alt = escapeHtml(base.name || '');
+    img.onerror = function() { this.style.display = 'none'; };
+    imageDiv.appendChild(img);
     
-    // Обработчик клика на кнопку
-    const button = card.querySelector('.base-card-button');
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'base-card-content';
+    
+    const title = document.createElement('h3');
+    title.className = 'base-card-title';
+    title.textContent = base.name || '';
+    
+    const description = document.createElement('p');
+    description.className = 'base-card-description';
+    description.textContent = base.description || '';
+    
+    const button = document.createElement('button');
+    button.className = 'base-card-button';
+    button.setAttribute('data-base-id', base.id || '');
+    button.textContent = 'Выбрать базу';
     button.addEventListener('click', () => importBase(base));
+    
+    contentDiv.appendChild(title);
+    contentDiv.appendChild(description);
+    contentDiv.appendChild(button);
+    
+    card.appendChild(imageDiv);
+    card.appendChild(contentDiv);
     
     return card;
 }
@@ -150,28 +208,54 @@ function createBaseCard(base) {
  */
 function importBase(base) {
     // Вибрация
-    tg.HapticFeedback.impactOccurred('medium');
+    if (tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred) {
+        try {
+            tg.HapticFeedback.impactOccurred('medium');
+        } catch (e) {
+            console.warn('HapticFeedback error', e);
+        }
+    }
+    
+    const message = `Импортировать базу "${base.name || 'базу'}" в Clash of Clans?`;
     
     // Показ подтверждения
-    tg.showConfirm(
-        `Импортировать базу "${base.name}" в Clash of Clans?`,
-        (confirmed) => {
+    if (tg && tg.showConfirm) {
+        tg.showConfirm(message, (confirmed) => {
             if (confirmed) {
-                // Открытие deeplink
-                window.location.href = base.deeplink;
-                
-                // Альтернативный способ (если первый не сработал)
-                setTimeout(() => {
-                    const link = document.createElement('a');
-                    link.href = base.deeplink;
-                    link.click();
-                }, 100);
-                
-                // Вибрация успеха
-                tg.HapticFeedback.notificationOccurred('success');
+                openDeeplink(base.deeplink);
             }
+        });
+    } else {
+        if (confirm(message)) {
+            openDeeplink(base.deeplink);
         }
-    );
+    }
+}
+
+/**
+ * Открытие deeplink
+ */
+function openDeeplink(deeplink) {
+    if (!deeplink) return;
+    
+    // Открытие deeplink
+    window.location.href = deeplink;
+    
+    // Альтернативный способ (если первый не сработал)
+    setTimeout(() => {
+        const link = document.createElement('a');
+        link.href = deeplink;
+        link.click();
+    }, 100);
+    
+    // Вибрация успеха
+    if (tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred) {
+        try {
+            tg.HapticFeedback.notificationOccurred('success');
+        } catch (e) {
+            console.warn('HapticFeedback error', e);
+        }
+    }
 }
 
 /**
@@ -180,44 +264,69 @@ function importBase(base) {
 function initEventHandlers() {
     // Кнопка "Назад"
     const backButton = document.getElementById('backButton');
-    backButton.addEventListener('click', () => {
-        // Переключение на главный экран
-        document.getElementById('basesScreen').classList.remove('active');
-        document.getElementById('mainScreen').classList.add('active');
-        
-        // Вибрация
-        tg.HapticFeedback.impactOccurred('light');
-    });
-    
-    // Обработка кнопки "Назад" в Telegram
-    tg.BackButton.onClick(() => {
-        if (document.getElementById('basesScreen').classList.contains('active')) {
+    if (backButton) {
+        backButton.addEventListener('click', () => {
+            // Переключение на главный экран
             document.getElementById('basesScreen').classList.remove('active');
             document.getElementById('mainScreen').classList.add('active');
-            tg.BackButton.hide();
-        }
-    });
-    
-    // Показ кнопки "Назад" при переходе на экран баз
-    const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            if (mutation.target.id === 'basesScreen' && mutation.target.classList.contains('active')) {
-                tg.BackButton.show();
-            } else if (mutation.target.id === 'mainScreen' && mutation.target.classList.contains('active')) {
-                tg.BackButton.hide();
+            
+            // Вибрация
+            if (tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred) {
+                try {
+                    tg.HapticFeedback.impactOccurred('light');
+                } catch (e) {
+                    console.warn('HapticFeedback error', e);
+                }
             }
         });
-    });
+    }
     
-    observer.observe(document.getElementById('basesScreen'), {
-        attributes: true,
-        attributeFilter: ['class']
-    });
+    // Обработка кнопки "Назад" в Telegram
+    if (tg && tg.BackButton && tg.BackButton.onClick) {
+        tg.BackButton.onClick(() => {
+            if (document.getElementById('basesScreen').classList.contains('active')) {
+                document.getElementById('basesScreen').classList.remove('active');
+                document.getElementById('mainScreen').classList.add('active');
+                if (tg.BackButton.hide) {
+                    tg.BackButton.hide();
+                }
+            }
+        });
+    }
     
-    observer.observe(document.getElementById('mainScreen'), {
-        attributes: true,
-        attributeFilter: ['class']
-    });
+    // Показ кнопки "Назад" при переходе на экран баз
+    if (tg && tg.BackButton) {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.target.id === 'basesScreen' && mutation.target.classList.contains('active')) {
+                    if (tg.BackButton.show) {
+                        tg.BackButton.show();
+                    }
+                } else if (mutation.target.id === 'mainScreen' && mutation.target.classList.contains('active')) {
+                    if (tg.BackButton.hide) {
+                        tg.BackButton.hide();
+                    }
+                }
+            });
+        });
+        
+        const basesScreen = document.getElementById('basesScreen');
+        const mainScreen = document.getElementById('mainScreen');
+        
+        if (basesScreen) {
+            observer.observe(basesScreen, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
+        }
+        
+        if (mainScreen) {
+            observer.observe(mainScreen, {
+                attributes: true,
+                attributeFilter: ['class']
+            });
+        }
+    }
 }
 
 /**
