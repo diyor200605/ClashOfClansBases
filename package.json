@@ -1,0 +1,16 @@
+{
+  "name": "clash-of-clans-bases",
+  "version": "1.0.0",
+  "description": "Telegram Web App for Clash of Clans bases selection",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "keywords": [
+    "clash-of-clans",
+    "telegram",
+    "web-app"
+  ],
+  "author": "",
+  "license": "MIT"
+}
