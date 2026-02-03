@@ -203,7 +203,7 @@ function createBaseCard(base) {
 }
 
 /**
- * Импорт базы в игру через deeplink
+ * Импорт базы в игру через копирование ссылки
  * @param {Object} base - Объект базы
  */
 function importBase(base) {
@@ -216,45 +216,100 @@ function importBase(base) {
         }
     }
     
-    const message = `Импортировать базу "${base.name || 'базу'}" в Clash of Clans?`;
+    // Получаем ссылку или код базы
+    let shareLink = base.shareLink || base.deeplink || '';
+    const shareCode = base.shareCode || base.id || '';
     
-    // Показ подтверждения
-    if (tg && tg.showConfirm) {
-        tg.showConfirm(message, (confirmed) => {
-            if (confirmed) {
-                openDeeplink(base.deeplink);
-            }
-        });
-    } else {
-        if (confirm(message)) {
-            openDeeplink(base.deeplink);
+    // Если нет shareLink, но есть shareCode, создаем ссылку
+    if (!shareLink && shareCode) {
+        shareLink = `https://link.clashofclans.com/?action=OpenLayout&id=${encodeURIComponent(shareCode)}`;
+    }
+    
+    if (!shareLink && !shareCode) {
+        const errorMsg = 'Ссылка на базу не найдена';
+        if (tg && tg.showAlert) {
+            tg.showAlert(errorMsg);
+        } else {
+            alert(errorMsg);
         }
+        return;
+    }
+    
+    // Копируем ссылку в буфер обмена (приоритет shareLink)
+    const textToCopy = shareLink || shareCode;
+    
+    copyToClipboard(textToCopy).then(() => {
+        // Вибрация успеха
+        if (tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred) {
+            try {
+                tg.HapticFeedback.notificationOccurred('success');
+            } catch (e) {
+                console.warn('HapticFeedback error', e);
+            }
+        }
+        
+        // Показываем инструкции
+        showImportInstructions(base.name, shareLink);
+    }).catch((err) => {
+        console.error('Ошибка копирования:', err);
+        // Показываем ссылку вручную
+        showImportInstructions(base.name, shareLink, true);
+    });
+}
+
+/**
+ * Копирование текста в буфер обмена
+ */
+async function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (err) {
+            console.warn('Clipboard API failed, trying fallback', err);
+        }
+    }
+    
+    // Fallback для старых браузеров
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return successful;
+    } catch (err) {
+        document.body.removeChild(textArea);
+        throw err;
     }
 }
 
 /**
- * Открытие deeplink
+ * Показ инструкций по импорту базы
  */
-function openDeeplink(deeplink) {
-    if (!deeplink) return;
+function showImportInstructions(baseName, shareLink, showLink = false) {
+    const message = showLink 
+        ? `Ссылка на базу "${baseName}" скопирована!\n\nСсылка: ${shareLink}\n\nОткройте Clash of Clans и вставьте ссылку в игре.`
+        : `Ссылка на базу "${baseName}" скопирована в буфер обмена!\n\nТеперь:\n1. Откройте Clash of Clans\n2. Перейдите в раздел "Базы"\n3. Нажмите "Импорт базы"\n4. Вставьте скопированную ссылку`;
     
-    // Открытие deeplink
-    window.location.href = deeplink;
+    if (tg && tg.showAlert) {
+        tg.showAlert(message);
+    } else {
+        alert(message);
+    }
     
-    // Альтернативный способ (если первый не сработал)
-    setTimeout(() => {
-        const link = document.createElement('a');
-        link.href = deeplink;
-        link.click();
-    }, 100);
-    
-    // Вибрация успеха
-    if (tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred) {
-        try {
-            tg.HapticFeedback.notificationOccurred('success');
-        } catch (e) {
-            console.warn('HapticFeedback error', e);
-        }
+    // Попытка открыть приложение Clash of Clans (опционально)
+    if (shareLink && shareLink.startsWith('https://link.clashofclans.com')) {
+        // Открываем официальную ссылку, которая должна открыть игру
+        setTimeout(() => {
+            window.open(shareLink, '_blank');
+        }, 1000);
     }
 }
 

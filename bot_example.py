@@ -19,7 +19,7 @@ import os
 BOT_TOKEN = os.getenv('BOT_TOKEN', '8447879501:AAEl7x1BD9_g0Sv1-ToGceiLzUehw3D48-k')
 
 # URL вашего Web App (должен быть HTTPS)
-WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://yourdomain.com/index.html')
+WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://clash-of-clans-bases.vercel.app/')
 
 
 async def start(update: Update, context: CallbackContext) -> None:
