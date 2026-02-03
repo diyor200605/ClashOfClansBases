@@ -249,18 +249,40 @@ function importBase(base) {
         }
         
         // Показываем инструкции
-        showImportInstructions(base.name, shareLink);
+        showImportInstructions(base.name, shareLink, false);
     }).catch((err) => {
         console.error('Ошибка копирования:', err);
-        // Показываем ссылку вручную
-        showImportInstructions(base.name, shareLink, true);
+        // Показываем ссылку вручную с возможностью скопировать
+        showImportInstructionsWithLink(base.name, shareLink || shareCode);
     });
+}
+
+/**
+ * Проверка, является ли устройство мобильным
+ */
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           (window.innerWidth <= 768);
 }
 
 /**
  * Копирование текста в буфер обмена
  */
 async function copyToClipboard(text) {
+    // Для мобильных устройств в Telegram Web App используем специальный API
+    if (tg && tg.ready && typeof tg.ready === 'function') {
+        try {
+            // В Telegram Web App можно использовать стандартный Clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+        } catch (err) {
+            console.warn('Clipboard API failed in Telegram', err);
+        }
+    }
+    
+    // Стандартный Clipboard API
     if (navigator.clipboard && navigator.clipboard.writeText) {
         try {
             await navigator.clipboard.writeText(text);
@@ -270,15 +292,39 @@ async function copyToClipboard(text) {
         }
     }
     
-    // Fallback для старых браузеров
+    // Fallback для старых браузеров и мобильных устройств
     const textArea = document.createElement('textarea');
     textArea.value = text;
     textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
-    textArea.style.top = '-999999px';
+    textArea.style.left = '0';
+    textArea.style.top = '0';
+    textArea.style.width = '2em';
+    textArea.style.height = '2em';
+    textArea.style.padding = '0';
+    textArea.style.border = 'none';
+    textArea.style.outline = 'none';
+    textArea.style.boxShadow = 'none';
+    textArea.style.background = 'transparent';
+    textArea.style.opacity = '0';
+    textArea.setAttribute('readonly', '');
+    textArea.setAttribute('contenteditable', 'true');
+    
     document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
+    
+    // Для мобильных устройств
+    if (isMobileDevice()) {
+        textArea.contentEditable = true;
+        textArea.readOnly = false;
+        const range = document.createRange();
+        range.selectNodeContents(textArea);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        textArea.setSelectionRange(0, 999999);
+    } else {
+        textArea.focus();
+        textArea.select();
+    }
     
     try {
         const successful = document.execCommand('copy');
@@ -294,22 +340,33 @@ async function copyToClipboard(text) {
  * Показ инструкций по импорту базы
  */
 function showImportInstructions(baseName, shareLink, showLink = false) {
-    const message = showLink 
-        ? `Ссылка на базу "${baseName}" скопирована!\n\nСсылка: ${shareLink}\n\nОткройте Clash of Clans и вставьте ссылку в игре.`
-        : `Ссылка на базу "${baseName}" скопирована в буфер обмена!\n\nТеперь:\n1. Откройте Clash of Clans\n2. Перейдите в раздел "Базы"\n3. Нажмите "Импорт базы"\n4. Вставьте скопированную ссылку`;
+    const isMobile = isMobileDevice();
+    
+    let message;
+    if (isMobile) {
+        message = `✅ Ссылка скопирована!\n\n📱 Инструкция:\n1. Откройте Clash of Clans\n2. Нажмите на иконку редактирования базы (карандаш)\n3. Выберите "Импорт базы"\n4. Вставьте ссылку из буфера обмена\n\n💡 Совет: Если не получилось скопировать, нажмите на кнопку еще раз.`;
+    } else {
+        message = `✅ Ссылка на базу "${baseName}" скопирована!\n\nИнструкция:\n1. Откройте Clash of Clans\n2. Перейдите в раздел "Базы"\n3. Нажмите "Импорт базы"\n4. Вставьте ссылку (Ctrl+V или Cmd+V)`;
+    }
     
     if (tg && tg.showAlert) {
         tg.showAlert(message);
     } else {
         alert(message);
     }
+}
+
+/**
+ * Показ инструкций с возможностью скопировать ссылку вручную
+ */
+function showImportInstructionsWithLink(baseName, link) {
+    const isMobile = isMobileDevice();
+    const message = `⚠️ Не удалось скопировать автоматически\n\nСсылка на базу "${baseName}":\n\n${link}\n\n${isMobile ? '📱 Выделите ссылку выше и скопируйте вручную, затем откройте Clash of Clans и вставьте в разделе "Импорт базы".' : '💻 Скопируйте ссылку выше (Ctrl+C), затем откройте Clash of Clans и вставьте в разделе "Импорт базы".'}`;
     
-    // Попытка открыть приложение Clash of Clans (опционально)
-    if (shareLink && shareLink.startsWith('https://link.clashofclans.com')) {
-        // Открываем официальную ссылку, которая должна открыть игру
-        setTimeout(() => {
-            window.open(shareLink, '_blank');
-        }, 1000);
+    if (tg && tg.showAlert) {
+        tg.showAlert(message);
+    } else {
+        alert(message);
     }
 }
 
