@@ -1,10 +1,18 @@
 """
 Пример Telegram бота для Clash of Clans Web App
-Требуется: pip install python-telegram-bot
+
+Установка зависимостей:
+    pip install -r requirements.txt
+    или
+    pip install python-telegram-bot>=20.0
+
+Примечание: Этот файл является примером и не требуется для работы Web App.
+Он нужен только если вы хотите создать Telegram бота на Python.
 """
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-from telegram.ext import Application, CommandHandler, CallbackContext
+# type: ignore - Импорты будут доступны после установки python-telegram-bot
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo  # noqa: E402
+from telegram.ext import Application, CommandHandler, CallbackContext  # noqa: E402
 import os
 
 # Замените на ваш токен бота от @BotFather
